@@ -50,7 +50,7 @@ fn command(cmd: &parser::Command) -> String {
     if let Some(f) = commands.get(cmd.name) {
         f(&cmd.content)
     } else {
-        format!("[[no such function {}]]", cmd.name)
+        format!("[[no such function {}]]", cmd.command_name())
     }
 }
 
