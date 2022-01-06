@@ -5,6 +5,5 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-either = "1.6"
-nom = "7.1"
 once_cell = "1.9"
+pastex_parser = { path = "../pastex_parser" }

@@ -1,5 +1,5 @@
-use crate::parser::{self, Element, Stream};
 use once_cell::sync::Lazy;
+use pastex_parser::{self as parser, Element, Stream};
 use std::collections::HashMap;
 
 fn strong(inner: &Stream) -> String {

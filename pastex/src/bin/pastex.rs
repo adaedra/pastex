@@ -1,4 +1,4 @@
-use pastex::{engine, parser};
+use pastex::engine;
 use std::io::{self, Read};
 
 fn main() -> anyhow::Result<()> {
@@ -8,7 +8,7 @@ fn main() -> anyhow::Result<()> {
         buffer
     };
 
-    match parser::document(&buffer) {
+    match pastex_parser::document(&buffer) {
         Ok((_, res)) => {
             engine::process(res);
         }

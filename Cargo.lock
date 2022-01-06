@@ -48,9 +48,16 @@ name = "pastex"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "once_cell",
+ "pastex_parser",
+]
+
+[[package]]
+name = "pastex_parser"
+version = "0.1.0"
+dependencies = [
  "either",
  "nom",
- "once_cell",
 ]
 
 [[package]]
