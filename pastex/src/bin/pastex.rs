@@ -9,7 +9,7 @@ fn main() -> anyhow::Result<()> {
     };
 
     match pastex_parser::document(&buffer) {
-        Ok((_, res)) => {
+        Ok(res) => {
             engine::process(res);
         }
         Err(e) => anyhow::bail!("Parser error: {:?}", e),

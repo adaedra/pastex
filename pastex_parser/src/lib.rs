@@ -1,20 +1,97 @@
+//! The parser used to transform pastex documents into a syntax tree for processing by an engine.
+
 use either::Either;
 use nom::Parser;
 use std::collections::HashMap;
 use std::fmt;
 
-pub type Params<'b> = HashMap<&'b str, Option<&'b str>>;
+/// A command parameters can take different forms. Depending on the form read from the file, it will
+/// have a different associated value from this enum.
+///
+/// * For simple arguments like `[foo]`, you will get [`ParamValue::None`] associated.
+/// * For aguments with a simple textual value, like `[foo = bar]`, you will obtain a
+///   [`ParamValue::Text`] with the text span accessible directly.
+/// * For arguments used with an evaluation span, like `[foo = { bar }]`, you will obtain a
+///   [`ParamValue::Stream`] and a [`Stream`] value to work with. You will have to process it
+///   like you would a top-level stream.
+#[derive(Debug)]
+pub enum ParamValue<'b> {
+    /// Simple parameter without value
+    None,
+    /// Parameter with a direct textual value
+    Text(&'b str),
+    /// Parameter with an evaluation span container an inner stream to process
+    Stream(Stream<'b>),
+}
+
+/// Represents parameters passed to a command. See [`ParamValue`] for a more detailled description
+/// of possible values.
+pub type Params<'b> = HashMap<&'b str, ParamValue<'b>>;
+
+/// A stream is a list of recognized elements of the same level.
 pub type Stream<'b> = Vec<Element<'b>>;
 
+/// Represents a command call itself, used inside an element to hold all associated data and be
+/// able to pass the command details themselves around.
+///
+/// Command calls look like this:
+///
+/// ```tex
+/// % Calls a function named `foo`:
+/// \foo
+/// \foo{}
+/// % Calls a function `foo` in the namespace `bar`:
+/// \bar:foo
+/// % Calls a function `foo` with some content:
+/// \foo{contents here...}
+/// % Can provide parameters, too:
+/// \foo[bar]{...}
+/// \foo[bar, baz = 1]{...}
+/// \foo[bar = {some more content and \commands}]{...}
+/// ```
+///
+/// To use a function with a large block of text, you can use the `begin` and `end` special commands
+/// to delimitate the call:
+///
+/// ```tex
+/// \begin{foo} % Command name goes in \begin's "content"
+/// ...
+/// \end{foo}
+///
+/// \begin[bar, baz = 1]{foo} % Parameters to `begin` are passed to `foo`
+/// ...
+/// \end{foo}
+/// ```
+///
+/// `begin` and `end` commands are converted into a command call to `foo`, like if you used
+/// `\foo{ ... }`. However, such uses are marked, and your engine can choose to act differently
+/// on block commands with the same name.
+///
+/// All forms given above will all be saved into the given structure below, filling different fields
+/// with the appropriate information.
 #[derive(Debug)]
 pub struct Command<'b> {
+    /// The name of the command
     pub name: &'b str,
+    /// The namespace of a command, if one is indicated, otherwise [`None`]
     pub namespace: Option<&'b str>,
+    /// The contents inside of the command call. Empty list if the call is done without any
+    /// contents
     pub content: Stream<'b>,
+    /// Parameters given to the command. Check [`Params`] and [`ParamValue`]
     pub params: Params<'b>,
+    /// `true` when the block (`begin`/`end`) form has been used, `false` for standard syntax
     pub block: bool,
 }
 
+/// Helper value to represent the name of a function call. Only holds the name and optionally
+/// namespace of a function call.
+///
+/// This structure is obtained with [`Command::command_name`] to obtain a displayable name you
+/// can use in `format!` and other cases where you need a string. You can also use it to compare
+/// if two command calls call into the same function.
+///
+/// If you need to get the inner name and/or namespace, use the source [`Command`] value.
 #[derive(PartialEq)]
 pub struct CommandName<'b>(&'b str, Option<&'b str>);
 
@@ -28,16 +105,22 @@ impl<'b> fmt::Display for CommandName<'b> {
 }
 
 impl<'b> Command<'b> {
+    /// Gets a displayable object from the command name.
     pub fn command_name(&self) -> CommandName<'b> {
         CommandName(self.name, self.namespace)
     }
 }
 
+/// Any recognized pastex syntax element from a stream.
 #[derive(Debug)]
 pub enum Element<'b> {
+    /// A command call. See [`Command`] for more details.
     Command(Command<'b>),
+    /// Raw, unprocessed text
     Raw(&'b str),
+    /// A comment, usually ignored
     Comment(&'b str),
+    /// A forced line break, obtained by putting a backslash before a line break.
     LineBreak,
 }
 
@@ -48,7 +131,7 @@ enum CommandType<'b> {
     Escape(&'b str),
 }
 
-pub type Result<'t, T> = nom::IResult<&'t str, T>;
+type Result<'t, T> = nom::IResult<&'t str, T>;
 
 struct Pair {
     open: char,
@@ -97,7 +180,7 @@ fn command_params(mut cur: &str) -> Result<Params> {
         }
 
         let (i, ident) = ident(i)?;
-        params.insert(ident, None);
+        params.insert(ident, ParamValue::None);
 
         let (i, _) = whitespace
             .and(opt(char(COMMAND_PARAMS_SEP_CHAR)))
@@ -285,14 +368,17 @@ fn top_loop_ctx<'b>(mut buf: &'b str, ctx: Option<CommandName>) -> Result<'b, St
     Ok((buf, res))
 }
 
-pub fn document(buf: &str) -> Result<Stream> {
+/// Parses a pastex document
+///
+/// Reads the whole document from a text buffer `buf`, then returns, as a [`Stream`], a tree
+/// structure of the document and all function calls inside for processing by a compatible
+/// engine.
+pub fn document(buf: &str) -> std::result::Result<Stream, nom::error::Error<&str>> {
     use nom::Finish;
 
-    let (buf, res) = top_loop(buf)?;
-
-    if !buf.is_empty() {
-        panic!("Extra content at end of file...");
+    match top_loop(buf).finish() {
+        Ok((buf, _)) if !buf.is_empty() => panic!("Extra content at end of file..."),
+        Ok((_, res)) => Ok(res),
+        Err(e) => Err(e),
     }
-
-    Ok((buf, res)).finish()
 }
