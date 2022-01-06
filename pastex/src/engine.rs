@@ -2,29 +2,29 @@ use once_cell::sync::Lazy;
 use pastex_parser::{self as parser, Element, Stream};
 use std::collections::HashMap;
 
-fn strong(inner: &Stream) -> String {
+fn strong(inner: &[Element]) -> String {
     format!("<strong>{}</strong>", stream(inner))
 }
 
-fn code(inner: &Stream) -> String {
+fn code(inner: &[Element]) -> String {
     format!("<code>{}</code>", stream(inner))
 }
 
-fn code_block(inner: &Stream) -> String {
+fn code_block(inner: &[Element]) -> String {
     format!("<pre><code>{}</code></pre>", stream(inner))
 }
 
-fn r#abstract(inner: &Stream) -> String {
+fn r#abstract(inner: &[Element]) -> String {
     format!(r#"<div class="abstract">{}</div>"#, stream(inner))
 }
 
-fn head(level: usize, inner: &Stream) -> String {
+fn head(level: usize, inner: &[Element]) -> String {
     format!("<h{}>{}</h{}>", level, stream(inner), level)
 }
 
-type Command = dyn Fn(&Stream) -> String;
+type Command = dyn Fn(&[Element]) -> String + Send + Sync;
 
-const COMMANDS: Lazy<HashMap<&'static str, &Command>> = Lazy::new(|| {
+static COMMANDS: Lazy<HashMap<&'static str, &Command>> = Lazy::new(|| {
     let mut map = HashMap::<_, &Command>::new();
 
     map.insert("strong", &strong);
@@ -36,7 +36,7 @@ const COMMANDS: Lazy<HashMap<&'static str, &Command>> = Lazy::new(|| {
     map
 });
 
-const BLOCK_COMMANDS: Lazy<HashMap<&'static str, &Command>> = Lazy::new(|| {
+static BLOCK_COMMANDS: Lazy<HashMap<&'static str, &Command>> = Lazy::new(|| {
     let mut map = HashMap::<_, &Command>::new();
 
     map.insert("code", &code_block);
@@ -46,7 +46,11 @@ const BLOCK_COMMANDS: Lazy<HashMap<&'static str, &Command>> = Lazy::new(|| {
 });
 
 fn command(cmd: &parser::Command) -> String {
-    let commands = if cmd.block { BLOCK_COMMANDS } else { COMMANDS };
+    let commands = if cmd.block {
+        &BLOCK_COMMANDS
+    } else {
+        &COMMANDS
+    };
     if let Some(f) = commands.get(cmd.name) {
         f(&cmd.content)
     } else {
@@ -67,7 +71,7 @@ fn element(element: &Element) -> String {
     }
 }
 
-fn stream(tree: &Stream) -> String {
+fn stream(tree: &[Element]) -> String {
     tree.iter().map(element).collect()
 }
 

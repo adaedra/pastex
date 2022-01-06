@@ -98,7 +98,7 @@ pub struct CommandName<'b>(&'b str, Option<&'b str>);
 impl<'b> fmt::Display for CommandName<'b> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.1
-            .and_then(|namespace| Some(write!(f, "{}:", namespace)))
+            .map(|namespace| write!(f, "{}:", namespace))
             .transpose()
             .and_then(|_| self.0.fmt(f))
     }
@@ -307,7 +307,7 @@ fn top_loop_ctx<'b>(mut buf: &'b str, ctx: Option<CommandName>) -> Result<'b, St
     let mut res = Vec::new();
 
     loop {
-        if let Ok(_) = char::<_, ()>(COMMAND_CONTENT_CHARS.close)(buf) {
+        if char::<_, ()>(COMMAND_CONTENT_CHARS.close)(buf).is_ok() {
             // We leave the closing character in the flux to be consumed by the parent, so we
             // can have proper diagnostics in case of mismatched closings.
             break;

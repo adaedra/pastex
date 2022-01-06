@@ -10,5 +10,5 @@ fn main() -> anyhow::Result<()> {
 
     pastex_parser::document(&buffer)
         .map_err(|err| anyhow::format_err!("Parser error: {:?}", err))
-        .and_then(|tree| Ok(engine::process(tree)))
+        .map(engine::process)
 }
