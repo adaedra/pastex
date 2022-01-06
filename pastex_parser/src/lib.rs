@@ -373,7 +373,7 @@ fn top_loop_ctx<'b>(mut buf: &'b str, ctx: Option<CommandName>) -> Result<'b, St
 /// Reads the whole document from a text buffer `buf`, then returns, as a [`Stream`], a tree
 /// structure of the document and all function calls inside for processing by a compatible
 /// engine.
-pub fn document(buf: &str) -> std::result::Result<Stream, nom::error::Error<&str>> {
+pub fn parse(buf: &str) -> std::result::Result<Stream, nom::error::Error<&str>> {
     use nom::Finish;
 
     match top_loop(buf).finish() {
@@ -385,7 +385,7 @@ pub fn document(buf: &str) -> std::result::Result<Stream, nom::error::Error<&str
 
 #[cfg(test)]
 mod tests {
-    use super::{document, Element};
+    use super::{parse, Element};
 
     macro_rules! test_stream {
         ($s:expr => { $($p:pat => $e:expr,)* }) => {{
@@ -397,7 +397,7 @@ mod tests {
                     Some(other) => panic!("Value does not match {}: {:?}", stringify!($p), other),
                     None => panic!("Unexpected end of file, expected {}", stringify!($p)),
                 }
-            );*
+            )*
 
             match it.next() {
                 None => (),
@@ -408,7 +408,7 @@ mod tests {
 
     macro_rules! test_document {
         ($d:expr => { $($p:pat => $e:expr,)* }) => {
-            test_stream!(document($d).unwrap() => { $($p => $e,)* })
+            test_stream!(parse($d).unwrap() => { $($p => $e,)* })
         }
     }
 
