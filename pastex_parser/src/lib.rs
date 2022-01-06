@@ -382,3 +382,70 @@ pub fn document(buf: &str) -> std::result::Result<Stream, nom::error::Error<&str
         Err(e) => Err(e),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{document, Element};
+
+    macro_rules! test_stream {
+        ($s:expr => { $($p:pat => $e:expr,)* }) => {{
+            let mut it = $s.into_iter();
+
+            $(
+                match it.next() {
+                    Some($p) => $e,
+                    Some(other) => panic!("Value does not match {}: {:?}", stringify!($p), other),
+                    None => panic!("Unexpected end of file, expected {}", stringify!($p)),
+                }
+            );*
+
+            match it.next() {
+                None => (),
+                Some(other) => panic!("Expected end of stream, got {:?}", other),
+            }
+        }};
+    }
+
+    macro_rules! test_document {
+        ($d:expr => { $($p:pat => $e:expr,)* }) => {
+            test_stream!(document($d).unwrap() => { $($p => $e,)* })
+        }
+    }
+
+    #[test]
+    fn test_empty() {
+        test_document!("" => {});
+    }
+
+    #[test]
+    fn test_raw() {
+        test_document!("raw" => {
+            Element::Raw(r) => assert_eq!(r, "raw"),
+        });
+    }
+
+    #[test]
+    fn test_escapes() {
+        test_document!(r"\\\}" => {
+            Element::Raw(r) => assert_eq!(r, r"\"),
+            Element::Raw(r) => assert_eq!(r, "}"),
+        })
+    }
+
+    #[test]
+    fn test_command() {
+        test_document!(r"\foo" => {
+            Element::Command(c) => assert_eq!("foo", c.name),
+        })
+    }
+
+    #[test]
+    fn test_command_ns() {
+        test_document!(r"\foo:bar" => {
+            Element::Command(c) => {
+                assert_eq!(Some("foo"), c.namespace);
+                assert_eq!("bar", c.name);
+            },
+        })
+    }
+}
