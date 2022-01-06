@@ -448,4 +448,15 @@ mod tests {
             },
         })
     }
+
+    #[test]
+    fn test_command_content() {
+        test_document!(r"\foo{bar}" => {
+            Element::Command(c) => {
+                test_stream!(c.content => {
+                    Element::Raw(r) => assert_eq!(r, "bar"),
+                })
+            },
+        })
+    }
 }
