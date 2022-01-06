@@ -8,12 +8,7 @@ fn main() -> anyhow::Result<()> {
         buffer
     };
 
-    match pastex_parser::document(&buffer) {
-        Ok(res) => {
-            engine::process(res);
-        }
-        Err(e) => anyhow::bail!("Parser error: {:?}", e),
-    }
-
-    Ok(())
+    pastex_parser::document(&buffer)
+        .map_err(|err| anyhow::format_err!("Parser error: {:?}", err))
+        .and_then(|tree| Ok(engine::process(tree)))
 }
