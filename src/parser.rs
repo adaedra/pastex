@@ -1,3 +1,4 @@
+use either::Either;
 use nom::Parser;
 use std::collections::HashMap;
 
@@ -19,10 +20,13 @@ pub enum Element<'b> {
     Raw(&'b str),
     Comment(&'b str),
     LineBreak,
+}
 
-    // Private
-    CommandStart(Command<'b>),
-    CommandEnd(Command<'b>),
+enum CommandType<'b> {
+    Normal(Command<'b>),
+    Start(Command<'b>),
+    End(Command<'b>),
+    Escape(&'b str),
 }
 
 pub type Result<'t, T> = nom::IResult<&'t str, T>;
@@ -86,20 +90,17 @@ fn command_params(mut cur: &str) -> Result<Params> {
     Ok((cur, params))
 }
 
-fn command(cur: &str) -> Result<Element> {
+fn command(cur: &str) -> Result<CommandType> {
     use nom::{character::complete::char, combinator::recognize};
 
     if let Ok((i, c)) = recognize(
         char::<_, ()>(COMMENT_CHAR)
             .or(char::<_, ()>(COMMAND_CHAR))
-            .or(char::<_, ()>(COMMAND_CONTENT_CHARS.close)),
+            .or(char::<_, ()>(COMMAND_CONTENT_CHARS.close))
+            .or(char::<_, ()>(LINE_BREAK_CHAR)),
     )(cur)
     {
-        return Ok((i, Element::Raw(c)));
-    }
-
-    if let Ok((i, _)) = char::<_, ()>(LINE_BREAK_CHAR)(cur) {
-        return Ok((i, Element::LineBreak));
+        return Ok((i, CommandType::Escape(c)));
     }
 
     let (mut cur, mut name) = ident(cur)?;
@@ -137,14 +138,14 @@ fn command(cur: &str) -> Result<Element> {
     };
 
     if namespace == None && name == COMMAND_BLOCK_START {
-        return Ok((cur, Element::CommandStart(command)));
+        return Ok((cur, CommandType::Start(command)));
     }
 
     if namespace == None && name == COMMAND_BLOCK_END {
-        return Ok((cur, Element::CommandEnd(command)));
+        return Ok((cur, CommandType::End(command)));
     }
 
-    Ok((cur, Element::Command(command)))
+    Ok((cur, CommandType::Normal(command)))
 }
 
 fn raw(cur: &str) -> Result<Element> {
@@ -163,15 +164,15 @@ fn comment(cur: &str) -> Result<Element> {
         .parse(cur)
 }
 
-fn top(cur: &str) -> Result<Element> {
+fn top(cur: &str) -> Result<Either<Element, CommandType>> {
     use nom::character::complete::char;
 
     if let Ok((cur, _)) = char::<_, ()>(COMMAND_CHAR)(cur) {
-        command(cur)
+        command.map(Either::Right).parse(cur)
     } else if let Ok((cur, _)) = char::<_, ()>(COMMENT_CHAR)(cur) {
-        comment(cur)
+        comment.map(Either::Left).parse(cur)
     } else {
-        raw(cur)
+        raw.map(Either::Left).parse(cur)
     }
 }
 
@@ -207,7 +208,13 @@ fn top_loop_ctx<'b>(mut buf: &'b str, ctx: Option<&'b str>) -> Result<'b, Stream
         let (cur, e) = top(buf)?;
 
         match e {
-            Element::CommandStart(mut cmd) => {
+            Either::Left(e) => res.push(e),
+            Either::Right(CommandType::Normal(cmd)) => res.push(Element::Command(cmd)),
+            Either::Right(CommandType::Escape(e)) => {
+                // TODO: Implement line break
+                res.push(Element::Raw(e));
+            }
+            Either::Right(CommandType::Start(mut cmd)) => {
                 let content = std::mem::replace(&mut cmd.content, Vec::new());
                 let name = block_command(content);
 
@@ -224,7 +231,7 @@ fn top_loop_ctx<'b>(mut buf: &'b str, ctx: Option<&'b str>) -> Result<'b, Stream
                 buf = cur;
                 continue;
             }
-            Element::CommandEnd(mut cmd) => {
+            Either::Right(CommandType::End(mut cmd)) => {
                 let content = std::mem::replace(&mut cmd.content, Vec::new());
                 let end_name = block_command(content);
 
@@ -245,7 +252,6 @@ fn top_loop_ctx<'b>(mut buf: &'b str, ctx: Option<&'b str>) -> Result<'b, Stream
                     )
                 }
             }
-            e => res.push(e),
         }
 
         buf = cur;
