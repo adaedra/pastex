@@ -1,82 +1,101 @@
-use once_cell::sync::Lazy;
-use pastex_parser::{self as parser, Element, Stream};
-use std::collections::HashMap;
+use crate::document::{Block, BlockFormat, Span};
+use nom::Parser;
+use pastex_parser::{Command, Element, Stream};
 
-fn strong(inner: &[Element]) -> String {
-    format!("<strong>{}</strong>", stream(inner))
+#[derive(Debug)]
+pub enum TopToken {
+    Text(Span),
+    Break,
+    Noop,
 }
 
-fn code(inner: &[Element]) -> String {
-    format!("<code>{}</code>", stream(inner))
-}
-
-fn code_block(inner: &[Element]) -> String {
-    format!("<pre><code>{}</code></pre>", stream(inner))
-}
-
-fn r#abstract(inner: &[Element]) -> String {
-    format!(r#"<div class="abstract">{}</div>"#, stream(inner))
-}
-
-fn head(level: usize, inner: &[Element]) -> String {
-    format!("<h{}>{}</h{}>", level, stream(inner), level)
-}
-
-type Command = dyn Fn(&[Element]) -> String + Send + Sync;
-
-static COMMANDS: Lazy<HashMap<&'static str, &Command>> = Lazy::new(|| {
-    let mut map = HashMap::<_, &Command>::new();
-
-    map.insert("strong", &strong);
-    map.insert("code", &code);
-    map.insert("head1", &|i| head(1, i));
-    map.insert("head2", &|i| head(2, i));
-    map.insert("head3", &|i| head(3, i));
-
-    map
-});
-
-static BLOCK_COMMANDS: Lazy<HashMap<&'static str, &Command>> = Lazy::new(|| {
-    let mut map = HashMap::<_, &Command>::new();
-
-    map.insert("code", &code_block);
-    map.insert("abstract", &r#abstract);
-
-    map
-});
-
-fn command(cmd: &parser::Command) -> String {
-    let commands = if cmd.block {
-        &BLOCK_COMMANDS
-    } else {
-        &COMMANDS
+fn raw(t: &str) -> Vec<TopToken> {
+    use nom::{
+        bytes::complete::{take_till1, take_while1},
+        character::complete::char,
+        combinator::{not, value},
+        multi::{many1, many1_count},
     };
-    if let Some(f) = commands.get(cmd.name) {
-        f(&cmd.content)
+
+    // Paragraph breaks
+    let pbreak = many1_count::<_, _, (), _>(char('\n')).map(|count| {
+        if count >= 2 {
+            TopToken::Break
+        } else {
+            TopToken::Noop
+        }
+    });
+
+    // Top-level whitespace (beginning of line)
+    let whitespace = take_while1(|c: char| c != '\n' && c.is_whitespace()).map(|_| TopToken::Noop);
+
+    // Inner line breaks, but not paragraph breaks
+    let linebr = value(" ", char('\n').and(not(char('\n'))));
+    // Either in-line whitespace or a word
+    let text_item = take_till1(char::is_whitespace).or(linebr.or(value(
+        " ",
+        take_while1(|c: char| c != '\n' && c.is_whitespace()),
+    )));
+    // Assemble the previous parsers to get whole paragraphs at once
+    let text =
+        many1(text_item).map(|res| TopToken::Text(Span::Raw(res.into_iter().collect::<String>())));
+
+    let (_, tokens) = many1(pbreak.or(whitespace).or(text))(t).unwrap();
+    tokens
+        .into_iter()
+        .filter(|t| !matches!(t, TopToken::Noop))
+        .skip_while(|t| matches!(t, TopToken::Break))
+        .collect()
+}
+
+fn command(cmd: Command) -> Vec<TopToken> {
+    if cmd.block {
+        root_tokens(cmd.content)
     } else {
-        format!("[[no such function {}]]", cmd.command_name())
+        cmd.content
+            .into_iter()
+            .map(root_element)
+            .flatten()
+            .collect()
     }
 }
 
-fn raw(t: &str) -> String {
-    t.to_owned()
-}
-
-fn element(element: &Element) -> String {
-    match element {
-        &Element::Command(ref cmd) => command(cmd),
-        &Element::Raw(t) => raw(t),
-        &Element::Comment(_) => String::new(),
-        o => unimplemented!("{:?}", o),
+fn root_element(el: Element) -> Vec<TopToken> {
+    match el {
+        Element::Raw(text) => raw(text),
+        Element::Comment(_) => Vec::new(),
+        Element::Command(cmd) => command(cmd),
+        Element::LineBreak => vec![TopToken::Text(Span::Raw("\n".to_string()))],
     }
 }
 
-fn stream(tree: &[Element]) -> String {
-    tree.iter().map(element).collect()
+fn root_tokens(stream: Stream) -> Vec<TopToken> {
+    stream
+        .into_iter()
+        .map(root_element)
+        .flatten()
+        .collect::<Vec<_>>()
 }
 
-pub fn process(tree: Stream) {
-    for el in tree.iter() {
-        print!("{}", element(el));
+pub(crate) fn root(stream: Stream) -> Vec<Block> {
+    let tokens = root_tokens(stream);
+    let mut outline = Vec::new();
+    let mut para = Vec::new();
+
+    for tk in tokens {
+        match tk {
+            TopToken::Text(span) => {
+                para.push(span);
+            }
+            TopToken::Break => {
+                if !para.is_empty() {
+                    let para = std::mem::replace(&mut para, Vec::new());
+                    outline.push(Block(BlockFormat::Paragraph, para));
+                }
+            }
+            TopToken::Noop => unreachable!(),
+        }
     }
+
+    outline
 }
