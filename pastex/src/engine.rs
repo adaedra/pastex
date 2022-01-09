@@ -1,12 +1,11 @@
 use crate::document::{Block, BlockFormat, Span};
 use nom::Parser;
-use pastex_parser::{Command, Element, Stream};
+use pastex_parser::{Element, Stream};
 
 #[derive(Debug)]
 pub enum TopToken {
-    Text(Span),
+    Text(Vec<Span>),
     Break,
-    Noop,
 }
 
 fn raw(t: &str) -> Vec<TopToken> {
@@ -18,16 +17,9 @@ fn raw(t: &str) -> Vec<TopToken> {
     };
 
     // Paragraph breaks
-    let pbreak = many1_count::<_, _, (), _>(char('\n')).map(|count| {
-        if count >= 2 {
-            TopToken::Break
-        } else {
-            TopToken::Noop
-        }
-    });
-
-    // Top-level whitespace (beginning of line)
-    let whitespace = take_while1(|c: char| c != '\n' && c.is_whitespace()).map(|_| TopToken::Noop);
+    let pbreak = char::<_, ()>('\n')
+        .and(many1_count(char('\n')))
+        .map(|_| TopToken::Break);
 
     // Inner line breaks, but not paragraph breaks
     let linebr = value(" ", char('\n').and(not(char('\n'))));
@@ -37,35 +29,37 @@ fn raw(t: &str) -> Vec<TopToken> {
         take_while1(|c: char| c != '\n' && c.is_whitespace()),
     )));
     // Assemble the previous parsers to get whole paragraphs at once
-    let text =
-        many1(text_item).map(|res| TopToken::Text(Span::Raw(res.into_iter().collect::<String>())));
+    let text = many1(text_item)
+        .map(|res| TopToken::Text(vec![Span::Raw(res.into_iter().collect::<String>())]));
 
-    let (_, tokens) = many1(pbreak.or(whitespace).or(text))(t).unwrap();
+    let (_, tokens) = many1(pbreak.or(text))(t).unwrap();
     tokens
         .into_iter()
-        .filter(|t| !matches!(t, TopToken::Noop))
         .skip_while(|t| matches!(t, TopToken::Break))
         .collect()
 }
 
-fn command(cmd: Command) -> Vec<TopToken> {
-    if cmd.block {
-        root_tokens(cmd.content)
-    } else {
-        cmd.content
-            .into_iter()
-            .map(root_element)
-            .flatten()
-            .collect()
+pub(crate) fn element(el: Element) -> Vec<Span> {
+    match el {
+        Element::Raw(text) => vec![Span::Raw(text.to_owned())],
+        Element::Comment(_) => Vec::new(),
+        Element::Command(_) => unimplemented!(),
+        Element::LineBreak => vec![Span::Raw("\n".to_string())],
     }
 }
 
-fn root_element(el: Element) -> Vec<TopToken> {
+pub(crate) fn root_element(el: Element) -> Vec<TopToken> {
     match el {
         Element::Raw(text) => raw(text),
         Element::Comment(_) => Vec::new(),
-        Element::Command(cmd) => command(cmd),
-        Element::LineBreak => vec![TopToken::Text(Span::Raw("\n".to_string()))],
+        Element::Command(cmd) => {
+            if cmd.block {
+                crate::commands::run_blk(cmd)
+            } else {
+                vec![TopToken::Text(crate::commands::run(cmd))]
+            }
+        }
+        Element::LineBreak => vec![TopToken::Text(vec![Span::Raw("\n".to_string())])],
     }
 }
 
@@ -90,10 +84,12 @@ pub(crate) fn root(stream: Stream) -> Vec<Block> {
             TopToken::Break => {
                 if !para.is_empty() {
                     let para = std::mem::replace(&mut para, Vec::new());
-                    outline.push(Block(BlockFormat::Paragraph, para));
+                    outline.push(Block(
+                        BlockFormat::Paragraph,
+                        para.into_iter().flatten().collect(),
+                    ));
                 }
             }
-            TopToken::Noop => unreachable!(),
         }
     }
 

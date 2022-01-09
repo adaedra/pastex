@@ -1,5 +1,18 @@
-use pastex::document;
+use pastex::document::{self, Span};
 use std::io::{self, Read};
+
+fn print(content: Vec<Span>) {
+    for span in content {
+        match span {
+            document::Span::Raw(t) => print!("{}", t),
+            document::Span::Format(_, inner) => {
+                print!("<code>");
+                print(inner);
+                print!("</code>");
+            }
+        }
+    }
+}
 
 fn main() -> anyhow::Result<()> {
     pretty_env_logger::init();
@@ -18,12 +31,7 @@ fn main() -> anyhow::Result<()> {
                 let document::Block(_, content) = blk;
 
                 print!("<p>");
-                for span in content {
-                    match span {
-                        document::Span::Raw(t) => print!("{}", t),
-                        _ => unimplemented!(),
-                    }
-                }
+                print(content);
                 println!("</p>");
             }
         })

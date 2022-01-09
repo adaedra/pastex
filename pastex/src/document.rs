@@ -6,7 +6,9 @@ pub enum BlockFormat {
 }
 
 #[derive(Debug)]
-pub enum SpanFormat {}
+pub enum SpanFormat {
+    Code,
+}
 
 #[derive(Debug)]
 pub enum Span {
