@@ -12,8 +12,9 @@ pub enum SpanFormat {
 
 #[derive(Debug)]
 pub enum Span {
-    Raw(String),
+    Text(String),
     Format(SpanFormat, Vec<Span>),
+    LineBreak,
 }
 
 #[derive(Debug)]
