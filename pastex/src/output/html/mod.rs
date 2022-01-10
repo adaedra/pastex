@@ -33,6 +33,7 @@ pub struct HtmlDocument(Tag<tags::html>);
 
 impl fmt::Display for HtmlDocument {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<!DOCTYPE html>")?;
         self.0.fmt(f)
     }
 }

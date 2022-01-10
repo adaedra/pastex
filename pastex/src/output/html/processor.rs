@@ -64,8 +64,8 @@ fn block(block: Block) -> AnyTag {
 fn head(metadata: Metadata) -> Tag<tags::head> {
     let mut res = Vec::new();
 
-    if let Some(ref value) = metadata.title {
-        res.push(tag!(box title => vec [r#box(value.clone())]));
+    if let Some(value) = metadata.title {
+        res.push(tag!(box title => vec [r#box(value)]));
     }
 
     tag!(head => res)
