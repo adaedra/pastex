@@ -1,6 +1,9 @@
 use crate::{
-    document::{metadata, BlockFormat, Metadata, Span, SpanFormat},
-    engine::{element, RootSpan},
+    document::{
+        metadata::{Field, Metadata},
+        BlockFormat, Span, SpanFormat,
+    },
+    engine::{element, root_spans, RootSpan},
 };
 use log::warn;
 use pastex_parser::{Element, Stream};
@@ -33,7 +36,7 @@ fn meta_impl<T, G, S>(
     _: bool,
 ) -> Vec<RootSpan>
 where
-    T: metadata::Field,
+    T: Field,
     G: Fn(&Metadata) -> &T,
     S: Fn(&mut Metadata, String),
 {
@@ -58,9 +61,24 @@ pub fn meta<T, G, S>(
     set: S,
 ) -> impl Fn(&mut Metadata, Stream, bool) -> Vec<RootSpan>
 where
-    T: metadata::Field,
+    T: Field,
     G: Fn(&Metadata) -> &T + Copy,
     S: Fn(&mut Metadata, String) + Copy,
 {
     move |metadata, content, block| meta_impl(metadata, name, get, set, content, block)
+}
+
+pub fn header<const LEVEL: usize>(_: &mut Metadata, content: Stream, _: bool) -> Vec<RootSpan> {
+    let inner = content
+        .into_iter()
+        .map(element)
+        .flatten()
+        .collect::<Vec<_>>();
+
+    vec![RootSpan::Block(BlockFormat::Heading(LEVEL), inner)]
+}
+
+pub fn r#abstract(metadata: &mut Metadata, content: Stream, _: bool) -> Vec<RootSpan> {
+    // Should go in metadata, treat that as a standard flux for now.
+    root_spans(metadata, content)
 }

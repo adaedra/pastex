@@ -1,6 +1,7 @@
-use crate::document::{Block, BlockFormat, Metadata, Span, SpanFormat};
+use crate::document::{metadata::Metadata, Block, BlockFormat, Span, SpanFormat};
 use nom::Parser;
 use pastex_parser::{Element, Stream};
+use std::mem::take;
 
 pub enum RootSpan {
     Text(String),
@@ -59,42 +60,66 @@ pub(crate) fn element(el: Element) -> Vec<Span> {
     }
 }
 
-pub(crate) fn root_element(metadata: &mut Metadata, el: Element) -> Vec<RootSpan> {
-    match el {
-        Element::Raw(text) => toplevel_text(text),
-        Element::Comment(_) => Vec::new(),
-        Element::Command(cmd) => crate::commands::toplevel_run(metadata, cmd),
-        Element::LineBreak => vec![RootSpan::LineBreak],
+pub fn root_spans(metadata: &mut Metadata, stream: Stream) -> Vec<RootSpan> {
+    let mut text_acc = String::new();
+    let mut spans = Vec::new();
+
+    for el in stream {
+        match el {
+            Element::Raw(text) => {
+                text_acc.push_str(text);
+            }
+            Element::Comment(_) => (),
+            Element::Command(cmd) => {
+                let res = crate::commands::toplevel_run(metadata, cmd);
+                let mut res = if !res.is_empty() && !text_acc.is_empty() {
+                    toplevel_text(&take(&mut text_acc))
+                        .into_iter()
+                        .chain(res.into_iter())
+                        .collect()
+                } else {
+                    res
+                };
+
+                spans.append(&mut res);
+            }
+            Element::LineBreak => spans.push(RootSpan::LineBreak),
+        }
     }
+
+    if !text_acc.is_empty() {
+        let mut res = toplevel_text(&text_acc);
+        spans.append(&mut res);
+    }
+
+    spans
 }
 
-fn root_spans(metadata: &mut Metadata, stream: Stream) -> Vec<RootSpan> {
-    stream
-        .into_iter()
-        .map(|el| root_element(metadata, el))
-        .flatten()
-        .collect::<Vec<_>>()
-}
-
-pub(crate) fn root(metadata: &mut Metadata, stream: Stream) -> Vec<Block> {
+pub fn root(metadata: &mut Metadata, stream: Stream) -> Vec<Block> {
     let document = root_spans(metadata, stream);
     let mut outline = Vec::new();
     let mut para = Vec::new();
 
     for span in document {
         match span {
-            RootSpan::Text(t) => para.push(Span::Text(t)),
+            RootSpan::Text(t) => {
+                if let Some(Span::Text(ref mut prev)) = para.last_mut() {
+                    prev.push_str(&t);
+                } else {
+                    para.push(Span::Text(t));
+                }
+            }
             RootSpan::Format(f, s) => para.push(Span::Format(f, s)),
             RootSpan::LineBreak => para.push(Span::LineBreak),
             RootSpan::ParagraphBreak => {
                 if !para.is_empty() {
-                    let para = std::mem::replace(&mut para, Vec::new());
+                    let para = take(&mut para);
                     outline.push(Block(BlockFormat::Paragraph, para));
                 }
             }
             RootSpan::Block(f, s) => {
                 if !para.is_empty() {
-                    let para = std::mem::replace(&mut para, Vec::new());
+                    let para = take(&mut para);
                     outline.push(Block(BlockFormat::Paragraph, para));
                 }
 

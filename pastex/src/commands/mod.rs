@@ -1,14 +1,17 @@
 use crate::{
-    document::{metadata::Field as MetadataField, BlockFormat, Metadata, Span},
+    document::{
+        metadata::{Field, Metadata},
+        BlockFormat, Span,
+    },
     engine::RootSpan,
 };
 use log::warn;
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
-pub type CommandName<'a> = (&'a str, Option<&'a str>);
+type CommandName<'a> = (&'a str, Option<&'a str>);
 
-mod commands;
+mod inline;
 mod toplevel;
 
 macro_rules! meta_impl {
@@ -16,20 +19,20 @@ macro_rules! meta_impl {
         Box::new(toplevel::meta(
             stringify!(name),
             |m| &m.$name,
-            |m, v| m.$name = MetadataField::from(&v),
+            |m, v| m.$name = Field::from(&v),
         ))
     };
 }
 
 macro_rules! commands_impl {
-    ($hm:ident, $name:ident => $f:expr, $($r:tt)*) => {
-        log::debug!("Registering command {}", stringify!($name));
-        $hm.insert((stringify!($name), None), Box::new($f));
+    ($hm:ident, $name:expr => $f:expr, $($r:tt)*) => {
+        log::debug!("Registering command {}", $name);
+        $hm.insert(($name, None), Box::new($f));
         commands_impl!($hm, $($r)*);
     };
-    ($hm:ident, $ns:ident, $name:ident => $f:expr, $($r:tt)*) => {
-        log::debug!("Registering command {}:{}", stringify!($ns), stringify!($name));
-        $hm.insert((stringify!($name), Some(stringify!($ns))), Box::new($f));
+    ($hm:ident, $ns:expr, $name:expr => $f:expr, $($r:tt)*) => {
+        log::debug!("Registering command {}:{}", $ns, $name);
+        $hm.insert(($name, Some($ns)), Box::new($f));
         commands_impl!($hm, $($r)*);
     };
     ($hm:ident,) => {};
@@ -45,18 +48,22 @@ macro_rules! commands {
     };
 }
 
-commands!(COMMANDS of commands::Command {
-    code => commands::code,
-    strong => commands::strong,
+commands!(COMMANDS of inline::Command {
+    "code" => inline::code,
+    "strong" => inline::strong,
 });
 
 commands!(TOPLEVEL_COMMANDS of toplevel::Command {
-    code => toplevel::code,
-    meta, title => meta_impl!(title),
-    meta, author => meta_impl!(author),
-    meta, date => meta_impl!(date),
-    meta, tags => meta_impl!(keywords),
-    meta, draft => meta_impl!(draft),
+    "code" => toplevel::code,
+    "head1" => toplevel::header::<1>,
+    "head2" => toplevel::header::<2>,
+    "head3" => toplevel::header::<3>,
+    "abstract" => toplevel::r#abstract,
+    "meta", "title" => meta_impl!(title),
+    "meta", "author" => meta_impl!(author),
+    "meta", "date" => meta_impl!(date),
+    "meta", "tags" => meta_impl!(keywords),
+    "meta", "draft" => meta_impl!(draft),
 });
 
 pub fn toplevel_run(metadata: &mut Metadata, cmd: pastex_parser::Command) -> Vec<RootSpan> {

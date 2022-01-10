@@ -33,16 +33,27 @@ fn main() -> anyhow::Result<()> {
         .map_err(|err| anyhow::format_err!("Parser error: {:?}", err))
         .map(document::process)
         .map(|document| {
-            dbg!(document.metadata);
+            println!("<head>");
+            if let Some(title) = document.metadata.title {
+                println!("<title>{}</title>", title);
+            }
+            println!("</head>");
 
+            println!("<body>");
             for blk in document.outline {
                 let document::Block(format, content) = blk;
 
                 match format {
                     BlockFormat::Paragraph => tag("p", content),
+                    BlockFormat::Heading(level) => {
+                        print!("<h{}>", level);
+                        print(content);
+                        print!("</h{}>", level);
+                    }
                     BlockFormat::Code => tag("pre", vec![Span::Format(SpanFormat::Code, content)]),
                 }
                 println!();
             }
+            println!("</body>");
         })
 }

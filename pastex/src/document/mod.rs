@@ -1,12 +1,13 @@
 pub mod metadata;
 
-pub use metadata::Metadata;
+use metadata::Metadata;
 use pastex_parser::Stream;
 
 #[derive(Debug)]
 pub enum BlockFormat {
     Paragraph,
     Code,
+    Heading(usize),
 }
 
 #[derive(Debug)]
