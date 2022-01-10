@@ -22,6 +22,41 @@ pub enum Span {
 #[derive(Debug)]
 pub struct Block(pub BlockFormat, pub Vec<Span>);
 
+pub trait MetadataField {
+    fn is_set(&self) -> bool;
+    fn from(s: &str) -> Self;
+}
+
+impl MetadataField for Option<String> {
+    fn is_set(&self) -> bool {
+        self.is_some()
+    }
+
+    fn from(s: &str) -> Self {
+        Some(s.to_owned())
+    }
+}
+
+impl MetadataField for bool {
+    fn is_set(&self) -> bool {
+        false
+    }
+
+    fn from(_: &str) -> Self {
+        true
+    }
+}
+
+impl MetadataField for Vec<String> {
+    fn is_set(&self) -> bool {
+        !self.is_empty()
+    }
+
+    fn from(s: &str) -> Self {
+        s.split(',').map(str::trim).map(str::to_owned).collect()
+    }
+}
+
 #[derive(Debug)]
 pub struct Metadata {
     pub title: Option<String>,

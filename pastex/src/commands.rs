@@ -1,5 +1,5 @@
 use crate::{
-    document::{BlockFormat, Metadata, Span, SpanFormat},
+    document::{BlockFormat, Metadata, MetadataField, Span, SpanFormat},
     engine::{element, RootSpan},
 };
 use log::warn;
@@ -57,10 +57,11 @@ fn meta<T, G, S>(
     _: bool,
 ) -> Vec<RootSpan>
 where
-    G: Fn(&Metadata) -> bool,
+    T: MetadataField,
+    G: Fn(&Metadata) -> &T,
     S: Fn(&mut Metadata, String),
 {
-    if get(metadata) {
+    if get(metadata).is_set() {
         warn!("Replacing existing metadata for {}", name);
     }
     let content = content
@@ -81,31 +82,19 @@ fn meta_impl<T, G, S>(
     set: S,
 ) -> impl Fn(&mut Metadata, Stream, bool) -> Vec<RootSpan>
 where
-    G: Fn(&Metadata) -> bool + Copy,
+    T: MetadataField,
+    G: Fn(&Metadata) -> &T + Copy,
     S: Fn(&mut Metadata, String) + Copy,
 {
-    move |metadata, content, block| meta::<T, G, S>(metadata, name, get, set, content, block)
+    move |metadata, content, block| meta(metadata, name, get, set, content, block)
 }
 
-// There's probably a way to clean up this mess by having metadata special types or something.
 macro_rules! meta_impl {
     ($name:ident) => {
-        Box::new(meta_impl::<String, _, _>(
+        Box::new(meta_impl(
             stringify!(name),
-            |m| m.$name.is_some(),
-            |m, v| m.$name = Some(v),
-        ))
-    };
-    ($name:ident : $type:ty { get($gname:ident) { $g:expr } set($sname:ident) { $s:expr } }) => {
-        Box::new(meta_impl::<$type, _, _>(
-            stringify!(name),
-            |m| {
-                let $gname = &m.$name;
-                $g
-            },
-            |m, $sname| {
-                m.$name = $s;
-            },
+            |m| &m.$name,
+            |m, v| m.$name = MetadataField::from(&v),
         ))
     };
 }
@@ -125,9 +114,9 @@ macro_rules! commands_impl {
 }
 
 macro_rules! commands {
-    ($hive:ident of $ftype:ty { $($r:tt)* }) => {
-        static $hive: Lazy<HashMap<CommandName<'static>, $ftype>> = Lazy::new(|| {
-            let mut hm = HashMap::<_, $ftype>::new();
+    ($hive:ident of $type:ty { $($r:tt)* }) => {
+        static $hive: Lazy<HashMap<CommandName<'static>, $type>> = Lazy::new(|| {
+            let mut hm = HashMap::<_, $type>::new();
             commands_impl!(hm, $($r)*);
             hm
         });
@@ -144,14 +133,8 @@ commands!(TOPLEVEL_COMMANDS of ToplevelCommand {
     meta, title => meta_impl!(title),
     meta, author => meta_impl!(author),
     meta, date => meta_impl!(date),
-    meta, tags => meta_impl!(keywords: Vec<String> {
-        get(value) { !value.is_empty() }
-        set(value) { value.split(",").map(str::trim).map(str::to_owned).collect() }
-    }),
-    meta, draft => meta_impl!(draft: bool {
-        get(_v) { false }
-        set(_v) { true }
-    }),
+    meta, tags => meta_impl!(keywords),
+    meta, draft => meta_impl!(draft),
 });
 
 pub(crate) fn toplevel_run(metadata: &mut Metadata, cmd: pastex_parser::Command) -> Vec<RootSpan> {
