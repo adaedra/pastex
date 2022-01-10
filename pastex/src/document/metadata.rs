@@ -1,33 +1,9 @@
-use pastex_parser::Stream;
-
-#[derive(Debug)]
-pub enum BlockFormat {
-    Paragraph,
-    Code,
-}
-
-#[derive(Debug)]
-pub enum SpanFormat {
-    Code,
-    Strong,
-}
-
-#[derive(Debug)]
-pub enum Span {
-    Text(String),
-    Format(SpanFormat, Vec<Span>),
-    LineBreak,
-}
-
-#[derive(Debug)]
-pub struct Block(pub BlockFormat, pub Vec<Span>);
-
-pub trait MetadataField {
+pub trait Field {
     fn is_set(&self) -> bool;
     fn from(s: &str) -> Self;
 }
 
-impl MetadataField for Option<String> {
+impl Field for Option<String> {
     fn is_set(&self) -> bool {
         self.is_some()
     }
@@ -37,7 +13,7 @@ impl MetadataField for Option<String> {
     }
 }
 
-impl MetadataField for bool {
+impl Field for bool {
     fn is_set(&self) -> bool {
         false
     }
@@ -47,7 +23,7 @@ impl MetadataField for bool {
     }
 }
 
-impl MetadataField for Vec<String> {
+impl Field for Vec<String> {
     fn is_set(&self) -> bool {
         !self.is_empty()
     }
@@ -76,16 +52,4 @@ impl Default for Metadata {
             draft: false,
         }
     }
-}
-
-pub struct Document {
-    pub outline: Vec<Block>,
-    pub metadata: Metadata,
-}
-
-pub fn process(stream: Stream) -> Document {
-    let mut metadata = Metadata::default();
-    let outline = crate::engine::root(&mut metadata, stream);
-
-    Document { outline, metadata }
 }
