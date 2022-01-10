@@ -3,11 +3,13 @@ use pastex_parser::Stream;
 #[derive(Debug)]
 pub enum BlockFormat {
     Paragraph,
+    Code,
 }
 
 #[derive(Debug)]
 pub enum SpanFormat {
     Code,
+    Strong,
 }
 
 #[derive(Debug)]

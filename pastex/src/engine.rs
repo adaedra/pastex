@@ -4,12 +4,23 @@ use pastex_parser::{Element, Stream};
 
 pub enum RootSpan {
     Text(String),
+    Block(BlockFormat, Vec<Span>),
     Format(SpanFormat, Vec<Span>),
     ParagraphBreak,
     LineBreak,
 }
 
-fn raw(t: &str) -> Vec<RootSpan> {
+impl From<Span> for RootSpan {
+    fn from(span: Span) -> Self {
+        match span {
+            Span::Format(f, s) => RootSpan::Format(f, s),
+            Span::LineBreak => RootSpan::LineBreak,
+            Span::Text(t) => RootSpan::Text(t),
+        }
+    }
+}
+
+fn toplevel_text(t: &str) -> Vec<RootSpan> {
     use nom::{
         bytes::complete::{take_till1, take_while1},
         character::complete::char,
@@ -43,22 +54,16 @@ pub(crate) fn element(el: Element) -> Vec<Span> {
     match el {
         Element::Raw(text) => vec![Span::Text(text.to_owned())],
         Element::Comment(_) => Vec::new(),
-        Element::Command(_) => unimplemented!(),
+        Element::Command(cmd) => crate::commands::run(cmd),
         Element::LineBreak => vec![Span::LineBreak],
     }
 }
 
 pub(crate) fn root_element(el: Element) -> Vec<RootSpan> {
     match el {
-        Element::Raw(text) => raw(text),
+        Element::Raw(text) => toplevel_text(text),
         Element::Comment(_) => Vec::new(),
-        Element::Command(cmd) => {
-            if cmd.block {
-                crate::commands::run_blk(cmd)
-            } else {
-                crate::commands::run(cmd)
-            }
-        }
+        Element::Command(cmd) => crate::commands::toplevel_run(cmd),
         Element::LineBreak => vec![RootSpan::LineBreak],
     }
 }
@@ -86,6 +91,14 @@ pub(crate) fn root(stream: Stream) -> Vec<Block> {
                     let para = std::mem::replace(&mut para, Vec::new());
                     outline.push(Block(BlockFormat::Paragraph, para));
                 }
+            }
+            RootSpan::Block(f, s) => {
+                if !para.is_empty() {
+                    let para = std::mem::replace(&mut para, Vec::new());
+                    outline.push(Block(BlockFormat::Paragraph, para));
+                }
+
+                outline.push(Block(f, s));
             }
         }
     }
