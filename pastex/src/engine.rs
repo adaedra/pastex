@@ -1,4 +1,4 @@
-use crate::document::{Block, BlockFormat, Span, SpanFormat};
+use crate::document::{Block, BlockFormat, Metadata, Span, SpanFormat};
 use nom::Parser;
 use pastex_parser::{Element, Stream};
 
@@ -59,25 +59,25 @@ pub(crate) fn element(el: Element) -> Vec<Span> {
     }
 }
 
-pub(crate) fn root_element(el: Element) -> Vec<RootSpan> {
+pub(crate) fn root_element(metadata: &mut Metadata, el: Element) -> Vec<RootSpan> {
     match el {
         Element::Raw(text) => toplevel_text(text),
         Element::Comment(_) => Vec::new(),
-        Element::Command(cmd) => crate::commands::toplevel_run(cmd),
+        Element::Command(cmd) => crate::commands::toplevel_run(metadata, cmd),
         Element::LineBreak => vec![RootSpan::LineBreak],
     }
 }
 
-fn root_spans(stream: Stream) -> Vec<RootSpan> {
+fn root_spans(metadata: &mut Metadata, stream: Stream) -> Vec<RootSpan> {
     stream
         .into_iter()
-        .map(root_element)
+        .map(|el| root_element(metadata, el))
         .flatten()
         .collect::<Vec<_>>()
 }
 
-pub(crate) fn root(stream: Stream) -> Vec<Block> {
-    let document = root_spans(stream);
+pub(crate) fn root(metadata: &mut Metadata, stream: Stream) -> Vec<Block> {
+    let document = root_spans(metadata, stream);
     let mut outline = Vec::new();
     let mut para = Vec::new();
 

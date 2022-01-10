@@ -33,6 +33,8 @@ fn main() -> anyhow::Result<()> {
         .map_err(|err| anyhow::format_err!("Parser error: {:?}", err))
         .map(document::process)
         .map(|document| {
+            dbg!(document.metadata);
+
             for blk in document.outline {
                 let document::Block(format, content) = blk;
 
