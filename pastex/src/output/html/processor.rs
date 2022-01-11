@@ -8,12 +8,23 @@ fn r#box<T: 'static + fmt::Display>(t: T) -> AnyTag {
 }
 
 macro_rules! attr {
-    ($name:ident = $value:expr) => {
-        (stringify!($name).to_owned(), $value.to_owned())
+    ($v:ident, $name:ident = $value:expr) => {
+        $v.push((stringify!($name).to_owned(), $value.to_owned()));
     };
-    ($name:ident = $value:expr , $($r:tt)*) => {
-        (stringify!($name).to_owned(), $value.to_owned()), attr!($($r)*)
+    ($v:ident, $name:ident = $value:expr , $($r:tt)*) => {
+        $v.push((stringify!($name).to_owned(), $value.to_owned()));
+        attr!($v, $($r)*);
     }
+}
+
+macro_rules! attrs {
+    ($($r:tt)*) => {
+        {
+            let mut v = Vec::new();
+            attr!(v, $($r)*);
+            v
+        }
+    };
 }
 
 macro_rules! tag {
@@ -35,7 +46,7 @@ macro_rules! tag {
     ($tag:ident($($r:tt)*) => $content:expr) => {
         Tag::<tags::$tag> {
             content: $content,
-            attributes: vec![attr!($($r)*)],
+            attributes: attrs!($($r)*),
             .. Default::default()
         }
     };
@@ -72,7 +83,7 @@ fn block(block: Block) -> AnyTag {
     match format {
         BlockFormat::Paragraph => Box::new(tag!(p => inner)),
         BlockFormat::Code => {
-            tag!(box pre => vec [tag!(box code(class = "code-block lang-none") => inner)])
+            tag!(box pre => vec [tag!(box code(class = "code-block") => inner)])
         }
         BlockFormat::Heading(lvl) => heading(lvl, inner),
     }
