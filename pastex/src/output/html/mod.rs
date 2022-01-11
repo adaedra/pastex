@@ -11,6 +11,16 @@ struct Tag<T: tags::Tag> {
     _phantom: PhantomData<T>,
 }
 
+impl<T: tags::Tag> Default for Tag<T> {
+    fn default() -> Self {
+        Tag {
+            attributes: Vec::new(),
+            content: Vec::new(),
+            _phantom: Default::default(),
+        }
+    }
+}
+
 impl<T: tags::Tag> fmt::Display for Tag<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "<{}", T::NAME)?;

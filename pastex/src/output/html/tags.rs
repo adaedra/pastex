@@ -1,5 +1,3 @@
-use std::fmt;
-
 pub trait Tag {
     const NAME: &'static str;
 }
@@ -42,16 +40,4 @@ tags! {
     h6,
     br,
     strong,
-}
-
-pub struct Fragment(pub Vec<super::AnyTag>);
-
-impl fmt::Display for Fragment {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for tag in &self.0 {
-            tag.fmt(f)?;
-        }
-
-        Ok(())
-    }
 }
