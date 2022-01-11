@@ -1,9 +1,9 @@
 use crate::{
     document::{
         metadata::{Field, Metadata},
-        BlockFormat, Span, SpanFormat,
+        BlockFormat, SpanFormat,
     },
-    engine::{element, root_spans, RootSpan},
+    engine::{self, root_spans, RootSpan, TextProcessor},
 };
 use log::warn;
 use pastex_parser::{Element, Stream};
@@ -11,18 +11,11 @@ use pastex_parser::{Element, Stream};
 pub type Command = Box<dyn Fn(&mut Metadata, Stream, bool) -> Vec<RootSpan> + Send + Sync>;
 
 pub fn code(_: &mut Metadata, content: Stream, block: bool) -> Vec<RootSpan> {
-    if block {
-        vec![RootSpan::Block(
-            BlockFormat::Code,
-            vec![Span::Text("[[unimplemented code block]]".to_owned())],
-        )]
-    } else {
-        let inner = content
-            .into_iter()
-            .map(element)
-            .flatten()
-            .collect::<Vec<_>>();
+    let inner = engine::PreserveTextProcessor::process_all(content);
 
+    if block {
+        vec![RootSpan::Block(BlockFormat::Code, inner)]
+    } else {
         vec![RootSpan::Format(SpanFormat::Code, inner)]
     }
 }
@@ -69,12 +62,7 @@ where
 }
 
 pub fn header<const LEVEL: usize>(_: &mut Metadata, content: Stream, _: bool) -> Vec<RootSpan> {
-    let inner = content
-        .into_iter()
-        .map(element)
-        .flatten()
-        .collect::<Vec<_>>();
-
+    let inner = engine::InlineTextProcessor::process_all(content);
     vec![RootSpan::Block(BlockFormat::Heading(LEVEL), inner)]
 }
 

@@ -51,9 +51,46 @@ fn toplevel_text(t: &str) -> Vec<RootSpan> {
         .collect()
 }
 
-pub(crate) fn element(el: Element) -> Vec<Span> {
+pub trait TextProcessor: Sized {
+    fn process(t: &str) -> Vec<Span>;
+
+    fn process_all(s: Stream) -> Vec<Span> {
+        s.into_iter().map(element::<Self>).flatten().collect()
+    }
+}
+
+pub struct InlineTextProcessor;
+
+impl TextProcessor for InlineTextProcessor {
+    fn process(t: &str) -> Vec<Span> {
+        use nom::{
+            bytes::complete::{take_till1, take_while1},
+            combinator::value,
+            multi::many0,
+        };
+
+        let whitespace = value(" ", take_while1::<_, _, ()>(char::is_whitespace));
+        let text = take_till1(char::is_whitespace);
+
+        let (_, res) = many0(text.or(whitespace)).parse(t).unwrap();
+        res.into_iter().map(|t| Span::Text(t.to_owned())).collect()
+    }
+}
+
+pub struct PreserveTextProcessor;
+
+impl TextProcessor for PreserveTextProcessor {
+    fn process(t: &str) -> Vec<Span> {
+        use nom::{character::complete::newline, multi::many0_count};
+        let (t, _) = many0_count::<_, _, (), _>(newline)(t).unwrap();
+
+        vec![Span::Text(t.to_owned())]
+    }
+}
+
+fn element<P: TextProcessor>(el: Element) -> Vec<Span> {
     match el {
-        Element::Raw(text) => vec![Span::Text(text.to_owned())],
+        Element::Raw(text) => P::process(text),
         Element::Comment(_) => Vec::new(),
         Element::Command(cmd) => crate::commands::run(cmd),
         Element::LineBreak => vec![Span::LineBreak],
