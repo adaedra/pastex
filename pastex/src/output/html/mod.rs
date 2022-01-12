@@ -48,8 +48,17 @@ impl fmt::Display for Text {
     }
 }
 
+struct Empty;
+
+impl fmt::Display for Empty {
+    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
+        Ok(())
+    }
+}
+
 impl<T: tags::Tag> Element for Tag<T> {}
 impl Element for Text {}
+impl Element for Empty {}
 
 pub struct HtmlDocument(Tag<tags::html>);
 

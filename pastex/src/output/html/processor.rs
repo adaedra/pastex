@@ -1,9 +1,33 @@
-use super::{tags, ElementBox, HtmlDocument, Tag, Text};
+use super::{tags, Element, ElementBox, HtmlDocument, Tag};
 use crate::document::{metadata::Metadata, Block, BlockFormat, Document, Span, SpanFormat};
 
-#[inline]
-fn r#box<T: 'static + super::Element>(t: T) -> ElementBox {
-    Box::new(t)
+trait IntoElementBox {
+    fn into_element_box(self) -> ElementBox;
+}
+
+impl<T: 'static + super::tags::Tag> IntoElementBox for Tag<T> {
+    fn into_element_box(self) -> ElementBox {
+        Box::new(self)
+    }
+}
+
+impl<T: 'static + Element> IntoElementBox for Box<T> {
+    fn into_element_box(self) -> ElementBox {
+        self
+    }
+}
+
+impl IntoElementBox for String {
+    fn into_element_box(self) -> ElementBox {
+        Box::new(super::Text(self))
+    }
+}
+
+impl<T: 'static + IntoElementBox> IntoElementBox for Option<T> {
+    fn into_element_box(self) -> ElementBox {
+        self.map(IntoElementBox::into_element_box)
+            .unwrap_or_else(|| Box::new(super::Empty))
+    }
 }
 
 macro_rules! attr {
@@ -28,14 +52,14 @@ macro_rules! attrs {
 
 macro_rules! tag {
     (box $($r:tt)*) => {
-        r#box(tag!($($r)*))
+        tag!($($r)*).into_element_box()
     };
     ($tag:ident) => {
         Tag::<tags::$tag>::default()
     };
     ($tag:ident { $($t:expr ;)* }) => {
         Tag::<tags::$tag> {
-            content: [$(r#box($t)),*].into_iter().collect::<Vec<_>>(),
+            content: [$($t.into_element_box()),*].into_iter().collect::<Vec<_>>(),
             .. Default::default()
         }
     };
@@ -62,7 +86,7 @@ macro_rules! tag {
 
 fn span(s: Span) -> ElementBox {
     match s {
-        Span::Text(t) => r#box(Text(t)),
+        Span::Text(t) => t.into_element_box(),
         Span::Format(f, t) => {
             let inner = t.into_iter().map(span).collect::<Vec<_>>();
 
@@ -100,13 +124,10 @@ fn block(block: Block) -> ElementBox {
 }
 
 fn head(metadata: Metadata) -> Tag<tags::head> {
-    let mut inner = vec![tag!(box meta(charset = "utf-8"))];
-
-    if let Some(value) = metadata.title {
-        inner.push(tag!(box title { Text(value); }));
-    }
-
-    tag!(head => inner)
+    tag!(head {
+        tag!(meta(charset = "utf-8"));
+        metadata.title.map(|value| tag!(title { value; }));
+    })
 }
 
 fn body(outline: Vec<Block>) -> Tag<tags::body> {
