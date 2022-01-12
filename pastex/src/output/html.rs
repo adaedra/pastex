@@ -47,15 +47,17 @@ fn head(metadata: Metadata) -> Tag<html::head> {
     })
 }
 
-fn body(outline: Vec<Block>) -> Tag<html::body> {
-    let inner = outline.into_iter().map(block).collect::<Vec<_>>();
-
-    tag!(body => inner)
+fn body(outline: Vec<Block>) -> Vec<ElementBox> {
+    outline.into_iter().map(block).collect::<Vec<_>>()
 }
 
-pub fn output(document: Document) -> HtmlDocument {
+pub fn output(document: Document) -> Vec<ElementBox> {
+    body(document.outline)
+}
+
+pub fn output_document(document: Document) -> HtmlDocument {
     HtmlDocument(tag!(html {
         head(document.metadata);
-        body(document.outline);
+        tag!(body => body(document.outline));
     }))
 }
