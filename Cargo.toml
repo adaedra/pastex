@@ -1,2 +1,2 @@
 [workspace]
-members = ["pastex_parser", "pastex"]
+members = ["pastex_parser", "dolmen", "pastex"]

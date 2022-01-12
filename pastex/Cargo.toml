@@ -6,6 +6,7 @@ license = "EUPL-1.2"
 
 [dependencies]
 anyhow = "1.0"
+dolmen = { path = "../dolmen" }
 log = "0.4"
 nom = "7"
 once_cell = "1.9"
