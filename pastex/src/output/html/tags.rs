@@ -27,6 +27,7 @@ macro_rules! tags {
 tags! {
     html,
     head,
+    meta,
     body,
     title,
     p,
