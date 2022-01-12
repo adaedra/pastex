@@ -1,21 +1,35 @@
+//! Rust rapid creation of in-memory HTML documents
+//!
+//! Dolmen allows client programs to create, store and generate HTML documents on the fly,
+//! based on a macro to create HTML elements in a Rust-like way, and generate HTML into text
+//! lazilly.
+//!
+//! See the [`tag`] macro for details.
+
 use std::{fmt, marker::PhantomData};
 
 pub mod html;
 
+/// Any kind of HTML document element
 pub trait Element: fmt::Display {}
+
+/// Simple alias for any [`Element`] in a [`Box`], but used everywhere in this crate for generic
+/// Element and Tag handling.
 pub type ElementBox = Box<dyn Element>;
 
+/// A in-memory HTML tag, that you can build with [`tag`] or manually with [`Tag::build`]
 pub struct Tag<T: html::Tag> {
-    pub attributes: Vec<(String, String)>,
-    pub content: Vec<ElementBox>,
-    pub _phantom: PhantomData<T>,
+    attributes: Vec<(String, String)>,
+    content: Vec<ElementBox>,
+    _phantom: PhantomData<T>,
 }
 
-impl<T: html::Tag> Default for Tag<T> {
-    fn default() -> Self {
+impl<T: html::Tag> Tag<T> {
+    /// Manually builds a HTML tag
+    pub fn build(attributes: Vec<(String, String)>, content: Vec<ElementBox>) -> Tag<T> {
         Tag {
-            attributes: Vec::new(),
-            content: Vec::new(),
+            attributes,
+            content,
             _phantom: Default::default(),
         }
     }
@@ -59,6 +73,7 @@ impl<T: html::Tag> Element for Tag<T> {}
 impl Element for Text {}
 impl Element for Empty {}
 
+#[doc(hidden)]
 #[macro_export]
 macro_rules! attr {
     ($v:ident, $name:ident = $value:expr) => {
@@ -70,6 +85,7 @@ macro_rules! attr {
     }
 }
 
+#[doc(hidden)]
 #[macro_export]
 macro_rules! attrs {
     ($($r:tt)*) => {
@@ -81,41 +97,33 @@ macro_rules! attrs {
     };
 }
 
+/// Creates a tag in memory
+///
+/// The `tag!` macro creates a new memory representation of a tag, using a Rustified syntax for
+/// the tag.
 #[macro_export]
 macro_rules! tag {
     (box $($r:tt)*) => {
         tag!($($r)*).into_element_box()
     };
     ($tag:ident) => {
-        $crate::Tag::<$crate::html::$tag>::default()
+        $crate::Tag::<$crate::html::$tag>::build(Default::default(), Default::default())
     };
     ($tag:ident { $($t:expr ;)* }) => {
-        $crate::Tag::<$crate::html::$tag> {
-            content: [$($crate::IntoElementBox::into_element_box($t)),*].into_iter().collect::<Vec<_>>(),
-            .. Default::default()
-        }
+        $crate::Tag::<$crate::html::$tag>::build(Default::default(), [$($crate::IntoElementBox::into_element_box($t)),*].into_iter().collect::<Vec<_>>())
     };
     ($tag:ident => $content:expr) => {
-        $crate::Tag::<$crate::html::$tag> {
-            content: $content,
-            .. Default::default()
-        }
+        $crate::Tag::<$crate::html::$tag>::build(Default::default(), $content)
     };
     ($tag:ident($($r:tt)*)) => {
-        $crate::Tag::<$crate::html::$tag> {
-            attributes: $crate::attrs!($($r)*),
-            .. Default::default()
-        }
+        $crate::Tag::<$crate::html::$tag>::build($crate::attrs!($($r)*), Default::default())
     };
     ($tag:ident($($r:tt)*) => $content:expr) => {
-        $crate::Tag::<$crate::html::$tag> {
-            content: $content,
-            attributes: $crate::attrs!($($r)*),
-            .. Default::default()
-        }
+        $crate::Tag::<$crate::html::$tag>::build($crate::attrs!($($r)*), $content)
     };
 }
 
+/// Trait to convert into boxed generic element
 pub trait IntoElementBox {
     fn into_element_box(self) -> ElementBox;
 }
@@ -145,6 +153,10 @@ impl<T: 'static + IntoElementBox> IntoElementBox for Option<T> {
     }
 }
 
+/// A complete HTML document
+///
+/// Represents a comblete, final HTML document ready to be generated. The main difference between
+/// this and a `html` tag element is that this will also generate a `DOCTYPE`.
 pub struct HtmlDocument(pub Tag<html::html>);
 
 impl fmt::Display for HtmlDocument {
