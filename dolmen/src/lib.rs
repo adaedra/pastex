@@ -61,7 +61,7 @@ struct Text(String);
 
 impl fmt::Display for Text {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(f)
+        html_escape::encode_text(&self.0).fmt(f)
     }
 }
 
