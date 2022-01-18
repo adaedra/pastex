@@ -40,6 +40,7 @@ pub struct Metadata {
     pub date: Option<String>,
     pub keywords: Vec<String>,
     pub draft: bool,
+    pub r#abstract: Option<Vec<super::Block>>,
 }
 
 impl Default for Metadata {
@@ -50,6 +51,7 @@ impl Default for Metadata {
             date: None,
             keywords: Vec::new(),
             draft: false,
+            r#abstract: None,
         }
     }
 }

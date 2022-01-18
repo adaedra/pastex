@@ -165,5 +165,10 @@ pub fn root(metadata: &mut Metadata, stream: Stream) -> Vec<Block> {
         }
     }
 
+    if !para.is_empty() {
+        let para = take(&mut para);
+        outline.push(Block(BlockFormat::Paragraph, para));
+    }
+
     outline
 }

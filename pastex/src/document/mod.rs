@@ -31,9 +31,14 @@ pub struct Document {
     pub metadata: Metadata,
 }
 
-pub fn process(stream: Stream) -> Document {
+pub fn process_stream(stream: Stream) -> Document {
     let mut metadata = Metadata::default();
     let outline = crate::engine::root(&mut metadata, stream);
 
     Document { outline, metadata }
+}
+
+pub fn process(path: &std::path::Path) -> std::io::Result<Document> {
+    let buf = std::fs::read_to_string(path)?;
+    Ok(process_stream(pastex_parser::parse(&buf).unwrap()))
 }

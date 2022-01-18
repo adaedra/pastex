@@ -51,8 +51,11 @@ fn body(outline: Vec<Block>) -> Vec<ElementBox> {
     outline.into_iter().map(block).collect::<Vec<_>>()
 }
 
-pub fn output(document: Document) -> Vec<ElementBox> {
-    body(document.outline)
+pub fn output(mut document: Document) -> (Vec<ElementBox>, Option<Vec<ElementBox>>) {
+    (
+        body(document.outline),
+        document.metadata.r#abstract.take().map(body),
+    )
 }
 
 pub fn output_document(document: Document) -> HtmlDocument {

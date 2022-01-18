@@ -43,6 +43,10 @@ impl<T: html::Tag> fmt::Display for Tag<T> {
             write!(f, r#" {}="{}""#, name, value)?;
         }
 
+        if self.content.is_empty() {
+            return write!(f, " />");
+        }
+
         write!(f, ">")?;
 
         for span in &self.content {
@@ -81,7 +85,7 @@ macro_rules! attr {
     };
     ($v:ident, $name:ident = $value:expr , $($r:tt)*) => {
         $v.push((stringify!($name).to_owned(), $value.to_owned()));
-        attr!($v, $($r)*);
+        $crate::attr!($v, $($r)*);
     }
 }
 
@@ -118,6 +122,9 @@ macro_rules! tag {
     ($tag:ident($($r:tt)*)) => {
         $crate::Tag::<$crate::html::$tag>::build($crate::attrs!($($r)*), Default::default())
     };
+    ($tag:ident($($r:tt)*) { $($t:expr ;)* }) => {
+        $crate::Tag::<$crate::html::$tag>::build($crate::attrs!($($r)*), [$($crate::IntoElementBox::into_element_box($t)),*].into_iter().collect::<Vec<_>>())
+    };
     ($tag:ident($($r:tt)*) => $content:expr) => {
         $crate::Tag::<$crate::html::$tag>::build($crate::attrs!($($r)*), $content)
     };
@@ -140,9 +147,21 @@ impl<T: 'static + Element> IntoElementBox for Box<T> {
     }
 }
 
+impl IntoElementBox for Box<dyn Element> {
+    fn into_element_box(self) -> ElementBox {
+        self
+    }
+}
+
 impl IntoElementBox for String {
     fn into_element_box(self) -> ElementBox {
         Box::new(Text(self))
+    }
+}
+
+impl<'a> IntoElementBox for &'a str {
+    fn into_element_box(self) -> ElementBox {
+        Box::new(Text(self.to_string()))
     }
 }
 

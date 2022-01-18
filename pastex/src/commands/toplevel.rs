@@ -3,7 +3,7 @@ use crate::{
         metadata::{Field, Metadata},
         BlockFormat, SpanFormat,
     },
-    engine::{self, root_spans, RootSpan, TextProcessor},
+    engine::{self, root, RootSpan, TextProcessor},
 };
 use log::warn;
 use pastex_parser::{Element, Stream};
@@ -67,6 +67,7 @@ pub fn header<const LEVEL: usize>(_: &mut Metadata, content: Stream, _: bool) ->
 }
 
 pub fn r#abstract(metadata: &mut Metadata, content: Stream, _: bool) -> Vec<RootSpan> {
-    // Should go in metadata, treat that as a standard flux for now.
-    root_spans(metadata, content)
+    let blocks = root(metadata, content);
+    metadata.r#abstract = Some(blocks);
+    Vec::new()
 }
