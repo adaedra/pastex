@@ -65,17 +65,34 @@ impl fmt::Display for Text {
     }
 }
 
-struct Empty;
+/// A fragment is an ensemble of elements
+pub struct Fragment(Vec<ElementBox>);
 
-impl fmt::Display for Empty {
-    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result {
+impl Fragment {
+    /// Creates an empty fragment
+    pub fn empty() -> Fragment {
+        Fragment(Vec::new())
+    }
+
+    /// Creates a fragment from a list of element
+    pub fn from(inner: Vec<ElementBox>) -> Fragment {
+        Fragment(inner)
+    }
+}
+
+impl fmt::Display for Fragment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for element in &self.0 {
+            element.fmt(f)?;
+        }
+
         Ok(())
     }
 }
 
 impl<T: html::Tag> Element for Tag<T> {}
 impl Element for Text {}
-impl Element for Empty {}
+impl Element for Fragment {}
 
 #[doc(hidden)]
 #[macro_export]
@@ -168,7 +185,7 @@ impl<'a> IntoElementBox for &'a str {
 impl<T: 'static + IntoElementBox> IntoElementBox for Option<T> {
     fn into_element_box(self) -> ElementBox {
         self.map(IntoElementBox::into_element_box)
-            .unwrap_or_else(|| Box::new(Empty))
+            .unwrap_or_else(|| Box::new(Fragment::empty()))
     }
 }
 
