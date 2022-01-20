@@ -170,15 +170,15 @@ impl IntoElementBox for Box<dyn Element> {
     }
 }
 
-impl IntoElementBox for String {
+impl IntoElementBox for Fragment {
     fn into_element_box(self) -> ElementBox {
-        Box::new(Text(self))
+        Box::new(self)
     }
 }
 
-impl<'a> IntoElementBox for &'a str {
+impl<T: AsRef<str>> IntoElementBox for &T {
     fn into_element_box(self) -> ElementBox {
-        Box::new(Text(self.to_string()))
+        Box::new(Text(self.as_ref().to_string()))
     }
 }
 

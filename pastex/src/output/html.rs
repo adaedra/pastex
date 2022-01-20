@@ -43,7 +43,7 @@ fn block(block: Block) -> ElementBox {
 fn head(metadata: Metadata) -> Tag<html::head> {
     tag!(head {
         tag!(meta(charset = "utf-8"));
-        metadata.title.map(|value| tag!(title { value; }));
+        metadata.title.map(|value| tag!(title { &value; }));
     })
 }
 
