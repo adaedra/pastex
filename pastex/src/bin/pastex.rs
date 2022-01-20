@@ -13,6 +13,6 @@ fn main() -> anyhow::Result<()> {
     pastex_parser::parse(&buffer)
         .map_err(|err| anyhow::format_err!("Parser error: {:?}", err))
         .map(document::process_stream)
-        .map(html::output_document)
+        .map(|document| html::output_document(&document))
         .map(|output| println!("{}", output))
 }

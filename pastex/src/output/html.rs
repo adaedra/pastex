@@ -1,11 +1,11 @@
 use crate::document::{metadata::Metadata, Block, BlockFormat, Document, Span, SpanFormat};
 use dolmen::{html, tag, ElementBox, HtmlDocument, IntoElementBox, Tag};
 
-fn span(s: Span) -> ElementBox {
+fn span(s: &Span) -> ElementBox {
     match s {
         Span::Text(t) => t.into_element_box(),
         Span::Format(f, t) => {
-            let inner = t.into_iter().map(span).collect::<Vec<_>>();
+            let inner = t.iter().map(span).collect::<Vec<_>>();
 
             match f {
                 SpanFormat::Code => tag!(box code => inner),
@@ -25,42 +25,46 @@ fn heading(level: usize, inner: Vec<ElementBox>) -> ElementBox {
     }
 }
 
-fn block(block: Block) -> ElementBox {
+fn block(block: &Block) -> ElementBox {
     let Block(format, content) = block;
-    let inner = content.into_iter().map(span).collect::<Vec<_>>();
+    let inner = content.iter().map(span).collect::<Vec<_>>();
 
     match format {
-        BlockFormat::Paragraph => tag!(box p => inner),
-        BlockFormat::Code => {
+        &BlockFormat::Paragraph => tag!(box p => inner),
+        &BlockFormat::Code => {
             tag!(box pre {
                 tag!(code(class = "code-block") => inner);
             })
         }
-        BlockFormat::Heading(lvl) => heading(lvl, inner),
+        &BlockFormat::Heading(lvl) => heading(lvl, inner),
     }
 }
 
-fn head(metadata: Metadata) -> Tag<html::head> {
+fn head(metadata: &Metadata) -> Tag<html::head> {
     tag!(head {
         tag!(meta(charset = "utf-8"));
-        metadata.title.map(|value| tag!(title { &value; }));
+        metadata.title.as_ref().map(|value| tag!(title { value; }));
     })
 }
 
-fn body(outline: Vec<Block>) -> Vec<ElementBox> {
+fn body(outline: &[Block]) -> Vec<ElementBox> {
     outline.into_iter().map(block).collect::<Vec<_>>()
 }
 
-pub fn output(mut document: Document) -> (Vec<ElementBox>, Option<Vec<ElementBox>>) {
+pub fn output(document: &Document) -> (Vec<ElementBox>, Option<Vec<ElementBox>>) {
     (
-        body(document.outline),
-        document.metadata.r#abstract.take().map(body),
+        body(&document.outline),
+        document
+            .metadata
+            .r#abstract
+            .as_ref()
+            .map(|blocks| body(blocks)),
     )
 }
 
-pub fn output_document(document: Document) -> HtmlDocument {
+pub fn output_document(document: &Document) -> HtmlDocument {
     HtmlDocument(tag!(html {
-        head(document.metadata);
-        tag!(body => body(document.outline));
+        head(&document.metadata);
+        tag!(body => body(&document.outline));
     }))
 }
