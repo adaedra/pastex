@@ -148,6 +148,7 @@ const COMMAND_CHAR: char = '\\';
 const NAMESPACE_CHAR: char = ':';
 const COMMAND_CONTENT_CHARS: Pair = Pair::make('{', '}');
 const COMMAND_PARAMS_CHARS: Pair = Pair::make('[', ']');
+const COMMAND_PARAMS_ASSIGN_CHAR: char = '=';
 const COMMAND_PARAMS_SEP_CHAR: char = ',';
 const COMMENT_CHAR: char = '%';
 const LINE_BREAK_CHAR: char = '\n';
@@ -167,7 +168,7 @@ fn whitespace(cur: &str) -> Result<&str> {
 }
 
 fn command_params(mut cur: &str) -> Result<Params> {
-    use nom::{character::complete::char, combinator::opt};
+    use nom::{bytes::complete::take_till1, character::complete::char, combinator::opt};
 
     let mut params = Params::new();
 
@@ -179,12 +180,20 @@ fn command_params(mut cur: &str) -> Result<Params> {
             break;
         }
 
-        let (i, ident) = ident(i)?;
-        params.insert(ident, ParamValue::None);
+        let (i, (ident, _)) = ident.and(whitespace).parse(i)?;
+        let i = if let Ok((i, _)) = char::<_, ()>(COMMAND_PARAMS_ASSIGN_CHAR)(i) {
+            let (i, _) = whitespace(i)?;
+            let (i, param) =
+                take_till1(|c| c == COMMAND_PARAMS_SEP_CHAR || c == COMMAND_PARAMS_CHARS.close)(i)?;
 
-        let (i, _) = whitespace
-            .and(opt(char(COMMAND_PARAMS_SEP_CHAR)))
-            .parse(i)?;
+            params.insert(ident, ParamValue::Text(param));
+            i
+        } else {
+            params.insert(ident, ParamValue::None);
+            i
+        };
+
+        let (i, _) = opt(char(COMMAND_PARAMS_SEP_CHAR)).parse(i)?;
 
         cur = i;
     }
@@ -323,8 +332,11 @@ fn top_loop_ctx<'b>(mut buf: &'b str, ctx: Option<CommandName>) -> Result<'b, St
             Either::Left(e) => res.push(e),
             Either::Right(CommandType::Normal(cmd)) => res.push(Element::Command(cmd)),
             Either::Right(CommandType::Escape(e)) => {
-                // TODO: Implement line break
-                res.push(Element::Raw(e));
+                if e.chars().next() == Some(LINE_BREAK_CHAR) {
+                    res.push(Element::LineBreak);
+                } else {
+                    res.push(Element::Raw(e));
+                }
             }
             Either::Right(CommandType::Start(cmd)) => {
                 let (cur, content) = top_loop_ctx(cur, Some(cmd.command_name()))?;

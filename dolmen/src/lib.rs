@@ -176,7 +176,7 @@ impl IntoElementBox for Fragment {
     }
 }
 
-impl<T: AsRef<str>> IntoElementBox for &T {
+impl<T: AsRef<str> + ?Sized> IntoElementBox for &T {
     fn into_element_box(self) -> ElementBox {
         Box::new(Text(self.as_ref().to_string()))
     }

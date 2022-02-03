@@ -51,6 +51,7 @@ macro_rules! commands {
 commands!(COMMANDS of inline::Command {
     "code" => inline::code,
     "strong" => inline::strong,
+    "link" => inline::link,
 });
 
 commands!(TOPLEVEL_COMMANDS of toplevel::Command {
@@ -72,7 +73,7 @@ pub fn toplevel_run(metadata: &mut Metadata, cmd: pastex_parser::Command) -> Vec
     if let Some(c) = TOPLEVEL_COMMANDS.get(&name) {
         c(metadata, cmd.content, cmd.block)
     } else if let Some(c) = COMMANDS.get(&name) {
-        c(cmd.content, cmd.block)
+        c(cmd.content, &cmd.params, cmd.block)
             .into_iter()
             .map(Into::into)
             .collect()
@@ -92,7 +93,7 @@ pub fn run(cmd: pastex_parser::Command) -> Vec<Span> {
     let name = (cmd.name, cmd.namespace);
 
     if let Some(c) = COMMANDS.get(&name) {
-        c(cmd.content, cmd.block)
+        c(cmd.content, &cmd.params, cmd.block)
     } else {
         warn!("Unknown command: {}", cmd.command_name());
         vec![Span::Text(format!(

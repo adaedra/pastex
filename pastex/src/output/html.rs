@@ -10,6 +10,10 @@ fn span(s: &Span) -> ElementBox {
             match f {
                 SpanFormat::Code => tag!(box code => inner),
                 SpanFormat::Strong => tag!(box strong => inner),
+                SpanFormat::Link { to, blank } if *blank => {
+                    tag!(box a(href = to, target = "_blank") => inner)
+                }
+                SpanFormat::Link { to, .. } => tag!(box a(href = to) => inner),
             }
         }
         Span::LineBreak => tag!(box br),
@@ -47,24 +51,24 @@ fn head(metadata: &Metadata) -> Tag<html::head> {
     })
 }
 
-fn body(outline: &[Block]) -> Vec<ElementBox> {
-    outline.into_iter().map(block).collect::<Vec<_>>()
+pub fn output_fragment(fragment: &[Block]) -> Vec<ElementBox> {
+    fragment.into_iter().map(block).collect()
 }
 
 pub fn output(document: &Document) -> (Vec<ElementBox>, Option<Vec<ElementBox>>) {
     (
-        body(&document.outline),
+        output_fragment(&document.outline),
         document
             .metadata
             .r#abstract
             .as_ref()
-            .map(|blocks| body(blocks)),
+            .map(|blocks| output_fragment(blocks)),
     )
 }
 
 pub fn output_document(document: &Document) -> HtmlDocument {
     HtmlDocument(tag!(html {
         head(&document.metadata);
-        tag!(body => body(&document.outline));
+        tag!(body => output_fragment(&document.outline));
     }))
 }
