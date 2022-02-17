@@ -17,6 +17,7 @@ impl From<Span> for RootSpan {
             Span::Format(f, s) => RootSpan::Format(f, s),
             Span::LineBreak => RootSpan::LineBreak,
             Span::Text(t) => RootSpan::Text(t),
+            Span::Raw(_) => RootSpan::Block(BlockFormat::Raw, vec![span]),
         }
     }
 }

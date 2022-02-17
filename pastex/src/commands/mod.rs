@@ -52,6 +52,7 @@ commands!(COMMANDS of inline::Command {
     "code" => inline::code,
     "strong" => inline::strong,
     "link" => inline::link,
+    "raw" => inline::raw,
 });
 
 commands!(TOPLEVEL_COMMANDS of toplevel::Command {

@@ -1,5 +1,5 @@
 use crate::document::{metadata::Metadata, Block, BlockFormat, Document, Span, SpanFormat};
-use dolmen::{html, tag, ElementBox, HtmlDocument, IntoElementBox, Tag};
+use dolmen::{html, tag, ElementBox, Fragment, HtmlDocument, IntoElementBox, RawHTML, Tag};
 
 fn span(s: &Span) -> ElementBox {
     match s {
@@ -11,12 +11,13 @@ fn span(s: &Span) -> ElementBox {
                 SpanFormat::Code => tag!(box code => inner),
                 SpanFormat::Strong => tag!(box strong => inner),
                 SpanFormat::Link { to, blank } if *blank => {
-                    tag!(box a(href = to, target = "_blank") => inner)
+                    tag!(box a(href = to, target = "_blank", rel = "noopener noreferrer") => inner)
                 }
                 SpanFormat::Link { to, .. } => tag!(box a(href = to) => inner),
             }
         }
         Span::LineBreak => tag!(box br),
+        Span::Raw(r) => Box::new(unsafe { RawHTML::from(r.clone()) }),
     }
 }
 
@@ -41,6 +42,7 @@ fn block(block: &Block) -> ElementBox {
             })
         }
         &BlockFormat::Heading(lvl) => heading(lvl, inner),
+        &BlockFormat::Raw => Fragment::from(inner).into_element_box(),
     }
 }
 

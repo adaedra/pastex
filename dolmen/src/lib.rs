@@ -90,9 +90,24 @@ impl fmt::Display for Fragment {
     }
 }
 
+pub struct RawHTML(String);
+
+impl RawHTML {
+    pub unsafe fn from(s: String) -> RawHTML {
+        RawHTML(s)
+    }
+}
+
+impl fmt::Display for RawHTML {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 impl<T: html::Tag> Element for Tag<T> {}
 impl Element for Text {}
 impl Element for Fragment {}
+impl Element for RawHTML {}
 
 #[doc(hidden)]
 #[macro_export]

@@ -30,3 +30,12 @@ pub fn link(content: Stream, params: &Params, _: bool) -> Vec<Span> {
         panic!(r"\link without to");
     }
 }
+
+pub fn raw(content: Stream, _: &Params, _: bool) -> Vec<Span> {
+    let inner = engine::PreserveTextProcessor::process_all(content);
+    match inner.into_iter().next() {
+        Some(Span::Text(span)) => vec![Span::Raw(span)],
+        None => Vec::new(),
+        _ => unreachable!(),
+    }
+}

@@ -10,6 +10,7 @@ pub enum BlockFormat {
     Paragraph,
     Code,
     Heading(usize),
+    Raw,
 }
 
 #[derive(Debug)]
@@ -24,6 +25,7 @@ pub enum Span {
     Text(String),
     Format(SpanFormat, Vec<Span>),
     LineBreak,
+    Raw(String),
 }
 
 #[derive(Debug)]
