@@ -1,8 +1,0 @@
-[package]
-name = "dolmen"
-version = "0.1.0"
-edition = "2021"
-license = "EUPL-1.2"
-
-[dependencies]
-html-escape = "0.2"

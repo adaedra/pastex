@@ -1,63 +1,70 @@
 use crate::document::{metadata::Metadata, Block, BlockFormat, Document, Span, SpanFormat};
-use dolmen::{html, tag, ElementBox, Fragment, HtmlDocument, IntoElementBox, RawHTML, Tag};
+use dolmen::{prelude::*, Fragment, RawFragment};
+use dolmen_dsl::element as tag;
+use std::iter::once;
 
-fn span(s: &Span) -> ElementBox {
+fn span(s: &Span) -> Box<dyn Node> {
     match s {
-        Span::Text(t) => t.into_element_box(),
+        Span::Text(t) => t.into_node(),
         Span::Format(f, t) => {
-            let inner = t.iter().map(span).collect::<Vec<_>>();
+            let inner = Fragment::new(t.iter().map(span));
 
             match f {
-                SpanFormat::Code => tag!(box code => inner),
-                SpanFormat::Strong => tag!(box strong => inner),
+                SpanFormat::Code => tag!(code {{ inner }}),
+                SpanFormat::Strong => tag!(strong {{ inner }}),
                 SpanFormat::Link { to, blank } if *blank => {
-                    tag!(box a(href = to, target = "_blank", rel = "noopener noreferrer") => inner)
+                    tag!(a[href: {to.clone()}, target: "_blank", rel: "noopener noreferrer"] {{ inner }})
                 }
-                SpanFormat::Link { to, .. } => tag!(box a(href = to) => inner),
+                SpanFormat::Link { to, .. } => tag!(a[href: {to.clone()}] {{ inner }}),
             }
+            .into_node()
         }
-        Span::LineBreak => tag!(box br),
-        Span::Raw(r) => Box::new(unsafe { RawHTML::from(r.clone()) }),
+        Span::LineBreak => tag!(br).into_node(),
+        Span::Raw(r) => unsafe { RawFragment::new(r) }.into_node(),
     }
 }
 
-fn heading(level: usize, inner: Vec<ElementBox>) -> ElementBox {
+fn heading(level: usize, inner: Fragment) -> Box<dyn Node> {
     match level {
-        1 => tag!(box h2 => inner),
-        2 => tag!(box h3 => inner),
-        3 => tag!(box h4 => inner),
+        1 => tag!(h2 {{ inner }}),
+        2 => tag!(h3 {{ inner }}),
+        3 => tag!(h4 {{ inner }}),
         _ => unimplemented!(),
     }
+    .into_node()
 }
 
-fn block(block: &Block) -> ElementBox {
+fn block(block: &Block) -> Box<dyn Node> {
     let Block(format, content) = block;
-    let inner = content.iter().map(span).collect::<Vec<_>>();
+    let inner = Fragment::new(content.iter().map(span));
 
     match format {
-        &BlockFormat::Paragraph => tag!(box p => inner),
-        &BlockFormat::Code => {
-            tag!(box pre {
-                tag!(code(class = "code-block") => inner);
-            })
-        }
+        &BlockFormat::Paragraph => tag!(p {{ inner }}).into_node(),
+        &BlockFormat::Code => tag!(pre {
+            code[class: "code-block"] {{ inner }}
+        })
+        .into_node(),
         &BlockFormat::Heading(lvl) => heading(lvl, inner),
-        &BlockFormat::Raw => Fragment::from(inner).into_element_box(),
+        &BlockFormat::Raw => inner.into_node(),
     }
 }
 
-fn head(metadata: &Metadata) -> Tag<html::head> {
-    tag!(head {
-        tag!(meta(charset = "utf-8"));
-        metadata.title.as_ref().map(|value| tag!(title { value; }));
-    })
+fn head(metadata: &Metadata) -> Fragment {
+    Fragment::new([
+        tag!(meta[charset: "utf-8"]).into_node(),
+        metadata
+            .title
+            .as_ref()
+            .map(|value| tag!(title {{ value }}).into_node())
+            .unwrap_or_else(|| Fragment::empty().into_node()),
+    ])
 }
 
-pub fn output_fragment(fragment: &[Block]) -> Vec<ElementBox> {
-    fragment.into_iter().map(block).collect()
+pub fn output_fragment(fragment: &[Block]) -> Fragment {
+    Fragment::new(fragment.into_iter().map(block))
 }
 
-pub fn output(document: &Document) -> (Vec<ElementBox>, Option<Vec<ElementBox>>) {
+pub fn output(document: &Document) -> (Fragment, Option<Fragment>) {
     (
         output_fragment(&document.outline),
         document
@@ -68,9 +75,11 @@ pub fn output(document: &Document) -> (Vec<ElementBox>, Option<Vec<ElementBox>>)
     )
 }
 
-pub fn output_document(document: &Document) -> HtmlDocument {
-    HtmlDocument(tag!(html {
-        head(&document.metadata);
-        tag!(body => output_fragment(&document.outline));
-    }))
+pub fn output_document(document: &Document) -> Fragment {
+    let html = tag!(html[lang: "en"] {
+        head {{ head(&document.metadata) }};
+        body {{ output_fragment(&document.outline) }}
+    })
+    .into_node();
+    Fragment::new(once(html))
 }
